@@ -584,17 +584,37 @@
             });
 
             const active = notes.find(n => n.id === activeNoteId);
+            
+            // 1. Grab only the text formatting buttons
+            const formatBtns = [
+                document.getElementById('btn-heading'), 
+                document.getElementById('btn-bold'), 
+                document.getElementById('btn-italic')
+            ];
+            
+            // 2. Safety Check: Ensure the main toolbar (and mobile menu) is NEVER disabled
+            document.getElementById('editor-toolbar').style.opacity = "1";
+            document.getElementById('editor-toolbar').style.pointerEvents = "auto";
+
             if (active) {
                 if (UI.editor.innerHTML !== active.content) UI.editor.innerHTML = active.content;
                 const isReadOnly = currentView === 'bin';
                 UI.editor.contentEditable = !isReadOnly;
-                document.getElementById('editor-toolbar').style.opacity = isReadOnly ? "0.3" : "1";
-                document.getElementById('editor-toolbar').style.pointerEvents = isReadOnly ? "none" : "auto";
+                
+                // Dim formatting buttons if in the Recycle Bin
+                formatBtns.forEach(btn => {
+                    btn.style.opacity = isReadOnly ? "0.3" : "1";
+                    btn.style.pointerEvents = isReadOnly ? "none" : "auto";
+                });
             } else {
                 UI.editor.innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top:20vh; font-size:18px;">No note selected.<br><br><span style="font-size:14px; opacity:0.7;">Click <b>+ New</b> in the sidebar to start writing.</span></div>'; 
                 UI.editor.contentEditable = "false";
-                document.getElementById('editor-toolbar').style.opacity = "0.3";
-                document.getElementById('editor-toolbar').style.pointerEvents = "none";
+                
+                // Dim ONLY formatting buttons when no note is selected
+                formatBtns.forEach(btn => {
+                    btn.style.opacity = "0.3";
+                    btn.style.pointerEvents = "none";
+                });
             }
         }
 
