@@ -133,7 +133,11 @@
         }
         .mobile-menu-btn {
             display: none; background: transparent; border: none; color: var(--text-primary);
-            cursor: pointer; padding: 4px; margin-right: 10px; align-items: center; justify-content: center;
+            cursor: pointer; padding: 12px; margin-left: -5px; margin-right: 10px; 
+            align-items: center; justify-content: center;
+            opacity: 1 !important; 
+            pointer-events: auto !important; 
+            z-index: 50;
         }
 
         /* Triggered on screens smaller than 768px (Phones/Tablets) */
@@ -573,8 +577,6 @@
                 li.onclick = () => { 
                     activeNoteId = note.id; 
                     renderList(); 
-                    
-                    // On mobile, auto-close the sidebar when a note is tapped
                     if(window.innerWidth <= 768) {
                         UI.sidebar.classList.remove('open');
                         UI.mobileOverlay.classList.remove('open');
@@ -583,37 +585,44 @@
                 UI.noteList.appendChild(li);
             });
 
+            // --- BULLETPROOF EMPTY STATE LOGIC ---
             const active = notes.find(n => n.id === activeNoteId);
-            
-            // 1. Grab only the text formatting buttons
+            const toolbar = document.getElementById('editor-toolbar');
             const formatBtns = [
                 document.getElementById('btn-heading'), 
                 document.getElementById('btn-bold'), 
                 document.getElementById('btn-italic')
             ];
-            
-            // 2. Safety Check: Ensure the main toolbar (and mobile menu) is NEVER disabled
-            document.getElementById('editor-toolbar').style.opacity = "1";
-            document.getElementById('editor-toolbar').style.pointerEvents = "auto";
 
+            // 1. Force the main toolbar container to ALWAYS be awake
+            if (toolbar) {
+                toolbar.style.opacity = "1";
+                toolbar.style.pointerEvents = "auto";
+            }
+
+            // 2. Handle the text editor area
             if (active) {
                 if (UI.editor.innerHTML !== active.content) UI.editor.innerHTML = active.content;
                 const isReadOnly = currentView === 'bin';
                 UI.editor.contentEditable = !isReadOnly;
                 
-                // Dim formatting buttons if in the Recycle Bin
+                // Dim formatting buttons if in Recycle Bin
                 formatBtns.forEach(btn => {
-                    btn.style.opacity = isReadOnly ? "0.3" : "1";
-                    btn.style.pointerEvents = isReadOnly ? "none" : "auto";
+                    if(btn) {
+                        btn.style.opacity = isReadOnly ? "0.3" : "1";
+                        btn.style.pointerEvents = isReadOnly ? "none" : "auto";
+                    }
                 });
             } else {
                 UI.editor.innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top:20vh; font-size:18px;">No note selected.<br><br><span style="font-size:14px; opacity:0.7;">Click <b>+ New</b> in the sidebar to start writing.</span></div>'; 
                 UI.editor.contentEditable = "false";
                 
-                // Dim ONLY formatting buttons when no note is selected
+                // Dim ONLY formatting buttons when empty
                 formatBtns.forEach(btn => {
-                    btn.style.opacity = "0.3";
-                    btn.style.pointerEvents = "none";
+                    if(btn) {
+                        btn.style.opacity = "0.3";
+                        btn.style.pointerEvents = "none";
+                    }
                 });
             }
         }
