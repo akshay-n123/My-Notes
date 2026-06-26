@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Notes</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#050505">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a90e2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'></path><polyline points='14 2 14 8 20 8'></polyline><line x1='16' y1='13' x2='8' y2='13'></line><line x1='16' y1='17' x2='8' y2='17'></line><polyline points='10 9 9 9 8 9'></polyline></svg>">
+
+    <style>
+        :root {
+            --bg-main: #050505; 
+            --bg-paper: #121212; 
+            --bg-sidebar: rgba(22, 22, 22, 0.95);
+            --border-color: #2a2a2a;
+            --page-border: #333333; 
+            --text-primary: #ededed;
+            --text-secondary: #888888;
+            --accent: #4a90e2; 
+            --pending: #f5a623;
+            --synced: #4ade80;
+            --hover-bg: rgba(255, 255, 255, 0.04);
+            --active-bg: rgba(255, 255, 255, 0.12);
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            margin: 0; padding: 0; display: flex; height: 100vh;
+            font-family: var(--font-stack); background-color: var(--bg-main);
+            color: var(--text-primary); overflow: hidden;
+        }
+
+        /* --- SECURITY LOCK SCREEN --- */
+        .lock-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(0, 0, 0, 0.85); backdrop-filter: blur(10px);
+            z-index: 9999; display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.3s ease;
+        }
+        .lock-modal {
+            background-color: #202020; border: 1px solid #333; border-radius: 8px;
+            width: 450px; padding: 20px 30px 40px 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+        }
+        .lock-header { display: flex; align-items: center; gap: 10px; margin-bottom: 25px; }
+        .lock-header svg { color: var(--accent); width: 18px; height: 18px; }
+        .lock-header span { font-size: 12px; font-weight: 600; color: #ccc; }
+        .lock-modal h2 { margin: 0 0 5px 0; font-size: 24px; font-weight: 600; }
+        .lock-modal p { margin: 0 0 30px 0; font-size: 14px; color: #aaa; }
+        .lock-center { display: flex; flex-direction: column; align-items: center; }
+        .pin-input-container { width: 100%; max-width: 300px; position: relative; }
+        .lock-modal input[type="password"] {
+            width: 100%; background: transparent; border: none; border-bottom: 2px solid var(--accent);
+            color: white; font-size: 24px; text-align: center; padding: 5px; outline: none;
+            letter-spacing: 15px; font-family: monospace;
+        }
+        .error-text { color: #ff5c5c; font-size: 13px; margin-top: 10px; text-align: center; opacity: 0; height: 15px; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+        .shake { animation: shake 0.4s ease-in-out; border-bottom-color: #ff5c5c !important; }
+
+        /* --- SIDEBAR & HEADER --- */
+        .sidebar {
+            width: 320px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column; z-index: 10;
+        }
+        .app-header {
+            padding: 15px 20px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border-color); background-color: rgba(0, 0, 0, 0.2);
+        }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand svg { color: var(--accent); }
+        .brand h1 { margin: 0; font-size: 16px; font-weight: 600; }
+
+        /* Sync Status Indicator */
+        .status-indicator {
+            display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-secondary);
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #555; }
+        .status-dot.online { background-color: var(--synced); }
+        .status-dot.offline { background-color: #ff5c5c; }
+        .status-dot.syncing { background-color: var(--pending); animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* Tabs & Toolbar */
+        .view-tabs { display: flex; border-bottom: 1px solid var(--border-color); background-color: rgba(0,0,0,0.1); }
+        .view-tabs button {
+            flex: 1; padding: 10px; background: transparent; border: none; color: var(--text-secondary);
+            cursor: pointer; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; transition: all 0.2s;
+        }
+        .view-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .toolbar { padding: 12px 20px; display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); }
+        .toolbar button {
+            background: transparent; color: var(--text-primary); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 8px; cursor: pointer; font-size: 12px; font-weight: 500;
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; transition: all 0.2s;
+        }
+        .toolbar button:hover { background-color: var(--hover-bg); border-color: #444; }
+
+        /* Note List */
+        .note-list { list-style: none; margin: 0; padding: 10px 0; overflow-y: auto; flex-grow: 1; }
+        .note-list li {
+            padding: 12px 20px; cursor: pointer; color: var(--text-secondary); font-size: 14px;
+            display: flex; justify-content: space-between; align-items: center; border-left: 3px solid transparent;
+        }
+        .note-list li .note-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .note-list li:hover { background-color: var(--hover-bg); color: var(--text-primary); }
+        .note-list li.active { background-color: var(--hover-bg); color: var(--text-primary); border-left-color: var(--accent); font-weight: 500; }
+
+        .sync-tick { width: 14px; height: 14px; flex-shrink: 0; transition: all 0.3s; }
+        .tick-pending { color: var(--pending); } 
+        .tick-synced { color: var(--synced); } 
+
+        /* Main Content */
+        .main-content { flex-grow: 1; display: flex; justify-content: center; padding: 0 40px; }
+        .paper-container { width: 100%; max-width: 850px; height: 100%; display: flex; flex-direction: column; background-color: var(--bg-paper); border-left: 1px solid var(--page-border); border-right: 1px solid var(--page-border); }
+        .editor-toolbar { padding: 15px 40px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
+        .editor-toolbar button { background: transparent; border: 1px solid transparent; color: var(--text-primary); cursor: pointer; padding: 6px 14px; border-radius: 4px; font-family: serif; }
+        .editor-toolbar button:hover { background-color: var(--hover-bg); border-color: var(--border-color); }
+        .editor-toolbar button.active-format { background-color: var(--active-bg); border-color: var(--border-color); color: var(--accent); }
+        #note-editor { flex-grow: 1; border: none; outline: none; padding: 40px; font-size: 16px; line-height: 1.6; overflow-y: auto; white-space: pre-wrap; }
+        #note-editor h3 { font-size: 1.4em; font-weight: 600; margin: 0.5em 0 0.2em 0; color: #fff; }
+        #note-editor:empty:before { content: attr(data-placeholder); color: var(--text-secondary); pointer-events: none; }
+        #note-editor[contenteditable="false"] { opacity: 0.6; cursor: not-allowed; }
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+        /* --- MOBILE RESPONSIVE UI --- */
+        .mobile-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px); z-index: 5;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .mobile-menu-btn {
+            display: none; background: transparent; border: none; color: var(--text-primary);
+            cursor: pointer; padding: 4px; margin-right: 10px; align-items: center; justify-content: center;
+        }
+
+        /* Triggered on screens smaller than 768px (Phones/Tablets) */
+        @media (max-width: 768px) {
+            .lock-modal { width: 85%; padding: 20px; }
+            .lock-modal input[type="password"] { letter-spacing: 10px; font-size: 20px; }
+            
+            .sidebar {
+                position: fixed; top: 0; left: 0; height: 100vh; width: 85vw; max-width: 320px;
+                transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 10; box-shadow: 5px 0 25px rgba(0,0,0,0.7);
+            }
+            .sidebar.open { transform: translateX(0); }
+            .mobile-overlay.open { display: block; opacity: 1; }
+            
+            .main-content { padding: 0; }
+            .paper-container { border: none; }
+            .editor-toolbar { padding: 12px 15px; }
+            .mobile-menu-btn { display: flex; }
+            
+            /* Give keyboard breathing room */
+            #note-editor { padding: 20px; padding-bottom: 50vh; } 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mobile-overlay" class="mobile-overlay"></div>
+
+    <div id="lock-screen" class="lock-screen">
+        <div class="lock-modal">
+            <div class="lock-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <span>Browser Security</span>
+            </div>
+            <h2>Making sure it's you</h2>
+            <p>Enter your PIN to unlock your local notes.</p>
+            <div class="lock-center">
+                <div class="pin-input-container">
+                    <input type="password" id="pin-input" maxlength="4" autocomplete="off" autofocus>
+                    <div id="pin-error" class="error-text">Incorrect PIN. Try again.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="app-header">
+            <div class="brand">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <h1>My Notes</h1>
+            </div>
+            <div class="status-indicator" id="status-indicator">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="view-tabs">
+            <button id="tab-main" class="active">Main</button>
+            <button id="tab-bin">Recycle Bin</button>
+        </div>
+
+        <div class="toolbar" id="main-toolbar">
+            <button id="btn-new" title="Create a new note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> New
+            </button>
+            <button id="btn-rename" title="Rename note topic">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="16 3 21 8 8 21 3 21 3 16 16 3"></polygon></svg> Rename
+            </button>
+            <button id="btn-restore" title="Restore to Main" style="display: none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg> Restore
+            </button>
+            <button id="btn-settings" title="App Settings">⚙️</button>
+            <button id="btn-delete" title="Move to Bin">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> Delete
+            </button>
+        </div>
+        <ul class="note-list" id="note-list"></ul>
+    </div>
+
+    <div class="main-content">
+        <div class="paper-container">
+            <div class="editor-toolbar" id="editor-toolbar">
+                <button id="mobile-menu-btn" class="mobile-menu-btn" title="Open Menu">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                
+                <button id="btn-heading">H</button>
+                <button id="btn-bold"><b>B</b></button>
+                <button id="btn-italic"><i>I</i></button>
+            </div>
+            <div id="note-editor" contenteditable="true" data-placeholder="Start typing..."></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const APP_PIN = "2004";
+        let GITHUB_TOKEN = localStorage.getItem('myNotesToken');
+        let GIST_ID = localStorage.getItem('myNotesGist');
+        // ==========================================
+
+        const UI = {
+            lockScreen: document.getElementById('lock-screen'),
+            pinInput: document.getElementById('pin-input'),
+            pinError: document.getElementById('pin-error'),
+            noteList: document.getElementById('note-list'),
+            editor: document.getElementById('note-editor'),
+            statusDot: document.getElementById('status-dot'),
+            statusText: document.getElementById('status-text'),
+            tabMain: document.getElementById('tab-main'),
+            tabBin: document.getElementById('tab-bin'),
+            btnNew: document.getElementById('btn-new'),
+            btnRename: document.getElementById('btn-rename'),
+            btnRestore: document.getElementById('btn-restore'),
+            btnSettings: document.getElementById('btn-settings'),
+            btnDelete: document.getElementById('btn-delete'),
+            sidebar: document.querySelector('.sidebar'),
+            mobileOverlay: document.getElementById('mobile-overlay'),
+            mobileMenuBtn: document.getElementById('mobile-menu-btn')
+        };
+
+        // --- STATE ENGINE ---
+        let notes = [];
+        let activeNoteId = null;
+        let currentView = 'main';
+        let lastSyncTime = localStorage.getItem('portableLastSync') || "0";
+        let isSyncing = false;
+        let syncDebounceTimer = null;
+
+        function encodeData(text) { return btoa(unescape(encodeURIComponent(text))); }
+        function decodeData(base64) { return decodeURIComponent(escape(atob(base64))); }
+
+        // --- SECURITY ---
+        window.onload = () => UI.pinInput.focus();
+        UI.pinInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            UI.pinError.style.opacity = "0"; UI.pinInput.classList.remove('shake');
+            if (val.length === 4) {
+                if (val === APP_PIN) {
+                    UI.lockScreen.style.opacity = "0";
+                    setTimeout(() => { UI.lockScreen.style.display = "none"; document.body.style.overflow = "auto"; initApp(); }, 300);
+                } else {
+                    UI.pinError.style.opacity = "1"; UI.pinInput.classList.add('shake'); UI.pinInput.value = "";
+                }
+            }
+        });
+
+        function initApp() {
+            const savedData = localStorage.getItem('portableNotesData');
+            if (savedData) notes = JSON.parse(savedData);
+    
+            // Check if configured
+            if (!localStorage.getItem('myNotesToken') || !localStorage.getItem('myNotesGist')) {
+            UI.statusText.innerText = "Please open Settings";
+            UI.statusDot.className = 'status-dot offline';
+            } else {
+                updateNetworkStatus();
+                window.addEventListener('online', updateNetworkStatus);
+                window.addEventListener('offline', updateNetworkStatus);
+                window.addEventListener('focus', () => { if(navigator.onLine) smartSync(); });
+                smartSync();
+            }
+            switchView('main');
+        }       
+
+        function openSettings() {
+            const token = prompt("GitHub Personal Access Token:", localStorage.getItem('myNotesToken') || "");
+            const gist = prompt("Gist ID:", localStorage.getItem('myNotesGist') || "");
+    
+            if (token) localStorage.setItem('myNotesToken', token);
+            if (gist) localStorage.setItem('myNotesGist', gist);
+    
+            if (token || gist) location.reload(); // Refresh to apply changes
+        }
+        // Add this to your bindings at the bottom:
+        document.getElementById('btn-settings').onclick = openSettings;
+
+        function saveLocalState() {
+            localStorage.setItem('portableNotesData', JSON.stringify(notes));
+            localStorage.setItem('portableLastSync', lastSyncTime);
+            renderList();
+        }
+
+        // --- SMART SYNC ENGINE ---
+        function updateNetworkStatus() {
+            if (navigator.onLine) {
+                if(!isSyncing) { UI.statusDot.className = 'status-dot online'; UI.statusText.innerText = "Online"; }
+                smartSync(); 
+            } else {
+                UI.statusDot.className = 'status-dot offline'; UI.statusText.innerText = "Offline Mode";
+            }
+        }
+
+        function triggerSyncQueue() {
+            if (!navigator.onLine) return; 
+            clearTimeout(syncDebounceTimer);
+            syncDebounceTimer = setTimeout(pushPendingChanges, 1000); 
+        }
+
+        async function smartSync() {
+            if (!navigator.onLine || !GITHUB_TOKEN || !GIST_ID) return;
+            
+            setSyncingUI(true);
+            try {
+                const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` } });
+                const gistData = await response.json();
+                
+                if (gistData.updated_at > lastSyncTime) {
+                    mergeCloudData(gistData.files);
+                    lastSyncTime = gistData.updated_at;
+                    saveLocalState();
+                } else {
+                    await pushPendingChanges();
+                }
+            } catch (err) { console.error("Sync Engine Error:", err); }
+            finally { setSyncingUI(false); }
+        }
+
+        async function pushPendingChanges() {
+            if (!navigator.onLine || isSyncing || !GITHUB_TOKEN || !GIST_ID) return;
+            
+            const patchFiles = {};
+            let hasChanges = false;
+
+            notes.forEach(note => {
+                if (note.isDeletedLocally) {
+                    if (note.cloudTitle) patchFiles[note.cloudTitle] = null;
+                    hasChanges = true;
+                } else if (note.syncState === 'pending') {
+                    const contentToSave = note.content.trim() === '' ? ' ' : note.content;
+                    const expectedCloudTitle = (note.isBin ? '[BIN]_' : '') + note.title + '.txt';
+                    
+                    if (note.cloudTitle && note.cloudTitle !== expectedCloudTitle) {
+                        patchFiles[note.cloudTitle] = null; 
+                    }
+                    
+                    patchFiles[expectedCloudTitle] = { content: encodeData(contentToSave) };
+                    hasChanges = true;
+                }
+            });
+
+            if (!hasChanges) return;
+
+            setSyncingUI(true);
+            try {
+                const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: patchFiles })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    lastSyncTime = data.updated_at;
+                    
+                    notes = notes.filter(n => !n.isDeletedLocally);
+                    notes.forEach(n => {
+                        if (n.syncState === 'pending') {
+                            n.syncState = 'synced';
+                            n.cloudTitle = (n.isBin ? '[BIN]_' : '') + n.title + '.txt';
+                        }
+                    });
+                    saveLocalState();
+                }
+            } catch (e) { console.error("Push Error", e); }
+            finally { setSyncingUI(false); }
+        }
+
+        function mergeCloudData(cloudFiles) {
+            const newNotesArray = [];
+            
+            for (const filename in cloudFiles) {
+                if (!filename.endsWith('.txt')) continue;
+                
+                let decoded = decodeData(cloudFiles[filename].content);
+                if (decoded === " ") decoded = "";
+                
+                const isBin = filename.startsWith('[BIN]_');
+                let rawTitle = filename.replace('[BIN]_', '').replace('.txt', '');
+                
+                let localConflict = notes.find(n => n.syncState === 'pending' && n.title === rawTitle && n.isBin === isBin);
+                if (localConflict) {
+                    localConflict.title = localConflict.title + " (Local Unsaved)";
+                    localConflict.cloudTitle = null; 
+                }
+
+                newNotesArray.push({
+                    id: Date.now().toString() + Math.random().toString(),
+                    title: rawTitle,
+                    cloudTitle: filename,
+                    content: decoded,
+                    syncState: 'synced',
+                    isBin: isBin,
+                    isDeletedLocally: false
+                });
+            }
+
+            notes.forEach(n => {
+                if (n.syncState === 'pending' && !n.isDeletedLocally) newNotesArray.push(n);
+            });
+
+            notes = newNotesArray;
+            if(!notes.find(n => n.id === activeNoteId)) activeNoteId = notes.length > 0 ? notes[0].id : null;
+            renderList();
+        }
+
+        function setSyncingUI(active) {
+            isSyncing = active;
+            if (active) {
+                UI.statusDot.className = 'status-dot syncing'; UI.statusText.innerText = "Syncing...";
+            } else {
+                if (navigator.onLine) {
+                    UI.statusDot.className = 'status-dot online'; UI.statusText.innerText = "Online";
+                } else {
+                    UI.statusDot.className = 'status-dot offline'; UI.statusText.innerText = "Offline Mode";
+                }
+            }
+        }
+
+        // --- LOCAL ACTIONS ---
+        function getUniqueTitle(base) {
+            let unique = base; let counter = 1;
+            while (notes.some(n => n.title === unique && !n.isDeletedLocally && !n.isBin)) { unique = `${base} (${counter})`; counter++; }
+            return unique;
+        }
+
+        function createNewNote() {
+            if (currentView !== 'main') switchView('main');
+            const newNote = {
+                id: Date.now().toString(),
+                title: getUniqueTitle('Untitled Note'),
+                cloudTitle: null,
+                content: '',
+                syncState: 'pending',
+                isBin: false,
+                isDeletedLocally: false
+            };
+            notes.unshift(newNote);
+            activeNoteId = newNote.id;
+            saveLocalState();
+            UI.editor.focus();
+            triggerSyncQueue();
+        }
+
+        function saveEditorContent() {
+            if(currentView === 'bin') return;
+            const note = notes.find(n => n.id === activeNoteId);
+            if (note && note.content !== UI.editor.innerHTML) {
+                note.content = UI.editor.innerHTML;
+                note.syncState = 'pending';
+                saveLocalState();
+                triggerSyncQueue();
+            }
+        }
+
+        function renameActiveNote() {
+            if (!activeNoteId || currentView === 'bin') return;
+            const note = notes.find(n => n.id === activeNoteId);
+            const newName = prompt("Enter a new topic name:", note.title);
+            if (newName && newName.trim() !== "" && newName.trim() !== note.title) {
+                note.title = getUniqueTitle(newName.trim());
+                note.syncState = 'pending';
+                saveLocalState();
+                triggerSyncQueue();
+            }
+        }
+
+        function restoreActiveNote() {
+            if (!activeNoteId || currentView !== 'bin') return;
+            const note = notes.find(n => n.id === activeNoteId);
+            
+            note.title = getUniqueTitle(note.title);
+            note.isBin = false;
+            note.syncState = 'pending'; 
+            
+            saveLocalState();
+            switchView('bin'); 
+            triggerSyncQueue();
+        }
+
+        function deleteActiveNote() {
+            if (!activeNoteId) return;
+            const note = notes.find(n => n.id === activeNoteId);
+
+            if (currentView === 'main') {
+                note.isBin = true;
+                note.syncState = 'pending'; 
+            } else {
+                if (confirm("Permanently delete?")) {
+                    note.isDeletedLocally = true; 
+                    note.syncState = 'pending';
+                } else return;
+            }
+            
+            switchView(currentView);
+            saveLocalState();
+            triggerSyncQueue();
+        }
+
+        // --- UI RENDERING ---
+        function switchView(view) {
+            currentView = view;
+            UI.tabMain.classList.toggle('active', view === 'main');
+            UI.tabBin.classList.toggle('active', view === 'bin');
+            
+            UI.btnNew.style.display = view === 'main' ? 'flex' : 'none';
+            UI.btnRename.style.display = view === 'main' ? 'flex' : 'none';
+            UI.btnSettings.style.display = view === 'main' ? 'flex' : 'none';
+            UI.btnRestore.style.display = view === 'bin' ? 'flex' : 'none'; 
+            UI.btnDelete.innerHTML = view === 'main' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> Delete' 
+                                                     : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff5c5c" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> Perm. Delete';
+            
+            const visible = notes.filter(n => (view === 'bin' ? n.isBin : !n.isBin) && !n.isDeletedLocally);
+            activeNoteId = visible.length > 0 ? visible[0].id : null;
+            renderList();
+        }
+
+        function renderList() {
+            UI.noteList.innerHTML = '';
+            const visible = notes.filter(n => (currentView === 'bin' ? n.isBin : !n.isBin) && !n.isDeletedLocally);
+            
+            visible.forEach(note => {
+                const li = document.createElement('li');
+                li.className = note.id === activeNoteId ? 'active' : '';
+                
+                const tickClass = note.syncState === 'synced' ? 'tick-synced' : 'tick-pending';
+                const svgTitle = note.syncState === 'synced' ? 'Backed up to cloud' : 'Local edits waiting to sync';
+
+                li.innerHTML = `
+                    <span class="note-title-text">${note.title}</span>
+                    <svg class="sync-tick ${tickClass}" title="${svgTitle}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                `;
+                li.onclick = () => { 
+                    activeNoteId = note.id; 
+                    renderList(); 
+                    
+                    // On mobile, auto-close the sidebar when a note is tapped
+                    if(window.innerWidth <= 768) {
+                        UI.sidebar.classList.remove('open');
+                        UI.mobileOverlay.classList.remove('open');
+                    }
+                };
+                UI.noteList.appendChild(li);
+            });
+
+            const active = notes.find(n => n.id === activeNoteId);
+            if (active) {
+                if (UI.editor.innerHTML !== active.content) UI.editor.innerHTML = active.content;
+                const isReadOnly = currentView === 'bin';
+                UI.editor.contentEditable = !isReadOnly;
+                document.getElementById('editor-toolbar').style.opacity = isReadOnly ? "0.3" : "1";
+                document.getElementById('editor-toolbar').style.pointerEvents = isReadOnly ? "none" : "auto";
+            } else {
+                UI.editor.innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top:20vh; font-size:18px;">No note selected.<br><br><span style="font-size:14px; opacity:0.7;">Click <b>+ New</b> in the sidebar to start writing.</span></div>'; 
+                UI.editor.contentEditable = "false";
+                document.getElementById('editor-toolbar').style.opacity = "0.3";
+                document.getElementById('editor-toolbar').style.pointerEvents = "none";
+            }
+        }
+
+        // --- MOBILE DRAWER BINDINGS ---
+        UI.mobileMenuBtn.onclick = () => {
+            UI.sidebar.classList.add('open');
+            UI.mobileOverlay.classList.add('open');
+        };
+        UI.mobileOverlay.onclick = () => {
+            UI.sidebar.classList.remove('open');
+            UI.mobileOverlay.classList.remove('open');
+        };
+
+        // --- EDITOR BINDINGS ---
+        UI.btnNew.onclick = createNewNote;
+        UI.btnRename.onclick = renameActiveNote;
+        UI.btnRestore.onclick = restoreActiveNote; 
+        UI.btnDelete.onclick = deleteActiveNote;
+        UI.tabMain.onclick = () => switchView('main');
+        UI.tabBin.onclick = () => switchView('bin');
+
+        document.getElementById('btn-bold').onclick = (e) => { e.preventDefault(); document.execCommand('bold'); saveEditorContent(); };
+        document.getElementById('btn-italic').onclick = (e) => { e.preventDefault(); document.execCommand('italic'); saveEditorContent(); };
+        document.getElementById('btn-heading').onclick = (e) => { 
+            e.preventDefault(); 
+            const isH = document.queryCommandValue('formatBlock').toLowerCase() === 'h3';
+            document.execCommand('formatBlock', false, isH ? 'div' : 'h3'); 
+            saveEditorContent(); 
+        };
+
+        UI.editor.addEventListener('keyup', saveEditorContent);
+        UI.editor.addEventListener('paste', (e) => {
+            e.preventDefault();
+            let text = (e.originalEvent || e).clipboardData.getData('text/plain');
+            text = text.replace(/^[ \t]*[\u2022\u2023\u25E6\u2043\u2219\u25CB\u25CF\u25A0•][ \t]*/gm, '');
+            document.execCommand('insertText', false, text);
+            saveEditorContent();
+        });
+
+        // --- PWA SERVICE WORKER REGISTRATION ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker Registered!', reg))
+                    .catch(err => console.error('Service Worker Registration Failed:', err));
+            });
+        }
+
+    </script>
+</body>
+</html>
