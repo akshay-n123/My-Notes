@@ -97,7 +97,11 @@
             flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; transition: all 0.2s;
         }
         .toolbar button:hover { background-color: var(--hover-bg); border-color: #444; }
-
+        .toolbar button.active-format {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            border-radius: 6px;
+        }
         /* Note List */
         .note-list { list-style: none; margin: 0; padding: 10px 0; overflow-y: auto; flex-grow: 1; }
         .note-list li {
@@ -540,7 +544,24 @@
             saveLocalState();
             triggerSyncQueue();
         }
+        // --- FORMAT TRACKING ENGINE ---
+        function updateFormatState() {
+            // Only update if the user is actually clicking/typing inside the editor
+            if (document.activeElement !== UI.editor) return;
 
+            // Check the browser's native text state
+            const isBold = document.queryCommandState('bold');
+            const isItalic = document.queryCommandState('italic');
+            
+            // Headings can return 'h1', 'H1', 'h2', etc. depending on the browser
+            const formatBlock = document.queryCommandValue('formatBlock') || "";
+            const isHeading = formatBlock.toLowerCase().includes('h');
+
+            // Toggle the highlight class on or off
+            document.getElementById('btn-bold').classList.toggle('active-format', isBold);
+            document.getElementById('btn-italic').classList.toggle('active-format', isItalic);
+            document.getElementById('btn-heading').classList.toggle('active-format', isHeading);
+        }
         // --- UI RENDERING ---
         function switchView(view) {
             currentView = view;
@@ -644,7 +665,7 @@
         UI.btnDelete.onclick = deleteActiveNote;
         UI.tabMain.onclick = () => switchView('main');
         UI.tabBin.onclick = () => switchView('bin');
-
+        
         document.getElementById('btn-bold').onclick = (e) => { e.preventDefault(); document.execCommand('bold'); saveEditorContent(); };
         document.getElementById('btn-italic').onclick = (e) => { e.preventDefault(); document.execCommand('italic'); saveEditorContent(); };
         document.getElementById('btn-heading').onclick = (e) => { 
@@ -653,7 +674,14 @@
             document.execCommand('formatBlock', false, isH ? 'div' : 'h3'); 
             saveEditorContent(); 
         };
-
+        // Update format button highlights when cursor moves or text is selected
+        document.addEventListener('selectionchange', () => {
+            // Slight delay ensures the DOM has updated before we check the format
+            setTimeout(updateFormatState, 10);
+        });
+        
+        UI.editor.addEventListener('keyup', updateFormatState);
+        UI.editor.addEventListener('mouseup', updateFormatState);
         UI.editor.addEventListener('keyup', saveEditorContent);
         UI.editor.addEventListener('paste', (e) => {
             e.preventDefault();
